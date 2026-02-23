@@ -1,0 +1,150 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2cm]{geometry}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\titlespacing*{\section}{0pt}{1.2ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{0.8ex}{0.4ex}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.3em}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small BeeZubi Lernwelt GmbH}
+\fancyhead[R]{\small Dokumentation -- \texttt{uebersetzer\_programm\_backoff.py}}
+\fancyfoot[C]{\thepage}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries Dokumentation: CSV-"Ubersetzungsprogramm}\\[0.3em]
+{\normalsize\texttt{uebersetzer\_programm\_backoff.py}}\\[0.2em]
+{\small Stand: Februar 2026}
+\end{center}
+
+\section{Zweck}
+Das Programm "ubersetzt CSV-Dateien (z.\,B. Pr"ufungsfragen) in mehrere Zielsprachen
+mithilfe der OpenAI-API. Es unterst"utzt Fortschritts-Wiederaufnahme, Dedup-Optimierung,
+automatische Richtig\_Text-Berechnung und Vollst"andigkeitspr"ufung mit Retry.
+
+\section{Ablauf der "Ubersetzung}
+
+\begin{enumerate}[leftmargin=1.5em, itemsep=1pt]
+    \item \textbf{CSV einlesen} -- Die Eingabedatei wird geladen, Spaltennamen normalisiert.
+          Optional werden Pr"ufungsspalten umbenannt (\texttt{-{}-pruefung}).
+    \item \textbf{Richtig1 korrigieren} -- Zeilen, in denen \texttt{Richtig1} den vollen
+          Antworttext statt eines Buchstabens (A--E) enth"alt, werden automatisch korrigiert.
+    \item \textbf{Spalten erkennen} -- Textspalten werden erkannt; gesch"utzte Spalten
+          (\texttt{-{}-protect-cols}) werden ausgeschlossen. Spalten mit wenigen einzigartigen
+          Werten ($\leq 200$) werden als Dedup-Spalten klassifiziert.
+    \item \textbf{Pro Zielsprache:}
+    \begin{enumerate}[label=\alph*), itemsep=1pt]
+        \item Spalte \texttt{Sprache} auf Zielsprache setzen.
+        \item \textbf{Dedup-"Ubersetzung} -- Spalten mit wenigen einzigartigen Werten
+              (z.\,B. \texttt{LF}, \texttt{Abschnitt}) werden nur 1x pro Wert "ubersetzt.
+        \item \textbf{Batch-"Ubersetzung} -- Alle "ubrigen Textspalten werden zeilenweise
+              in Batches "ubersetzt. Nach jedem Batch: Zwischenspeicherung + Fortschritt.
+        \item \textbf{Richtig\_Text bef"ullen} -- \texttt{Richtig\_Text1}/\texttt{Richtig1\_Text}
+              und \texttt{Richtig\_Text2} werden aus der richtigen Antwort (A--E) bef"ullt.
+        \item \textbf{Vollst"andigkeitspr"ufung} -- Eingabe und Ausgabe werden zellweise verglichen.
+              Falsch-positive Treffer (Zahlen, Codes, Abk"urzungen) werden ignoriert.
+        \item \textbf{Retry} -- Verdächtige Zellen werden bis zu 2x neu "ubersetzt.
+        \item \textbf{Endg"ultige Speicherung} -- CSV wird gespeichert, Fortschritt auf \texttt{done} gesetzt.
+    \end{enumerate}
+    \item \textbf{Wiederaufnahme} -- Bei Neustart werden bereits "ubersetzte Dateien nicht
+          erneut "ubersetzt. Gesch"utzte Spalten werden aus dem Original wiederhergestellt.
+\end{enumerate}
+
+\section{Parameter}
+
+\noindent
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Parameter} & \textbf{Standard} & \textbf{Beschreibung} \\
+\midrule
+\texttt{-{}-pdf} & \textit{(Pflicht)} & Eingabe-CSV-Datei (z.\,B. \texttt{EH\_260216.csv}) \\[3pt]
+\texttt{-{}-prompt} & \textit{(Pflicht)} & DOCX-Datei mit Megaprompt / "Ubersetzungsregeln \\[3pt]
+\texttt{-{}-model} & \texttt{gpt-5-mini} & OpenAI-Modell (z.\,B. \texttt{gpt-4o-mini}) \\[3pt]
+\texttt{-{}-temperature} & Modell-Std. & Temperature f"ur die API (z.\,B. 0, 0.3, 1) \\[3pt]
+\texttt{-{}-outdir} & \texttt{out\_translated\_backofff} & Ausgabeordner \\[3pt]
+\texttt{-{}-langage} & AR TR RU UK PL EN RO & Zielsprachen (Leerzeichen-getrennt) \\[3pt]
+\texttt{-{}-batch-size} & 100 & Zeilen pro API-Batch (10--200) \\[3pt]
+\texttt{-{}-sep} & \textit{(auto)} & CSV-Trenner (\texttt{;} oder \texttt{,}) \\[3pt]
+\texttt{-{}-encoding} & \texttt{utf-8} & Eingabe-Encoding (z.\,B. \texttt{utf-8-sig}) \\[3pt]
+\texttt{-{}-protect-cols} & \textit{(siehe unten)} & Gesch"utzte Spalten, die nie "ubersetzt werden \\[3pt]
+\texttt{-{}-never-translate} & \textit{(leer)} & Zus"atzliche Spalten, die nie "ubersetzt werden \\[3pt]
+\texttt{-{}-dedup-cols} & \texttt{LF,Abschnitt} & Spalten, die immer per Dedup "ubersetzt werden \\[3pt]
+\texttt{-{}-column-order} & \textit{(keine)} & Spaltenreihenfolge in der Ausgabe (\texttt{;}-getrennt) \\[3pt]
+\texttt{-{}-pruefung} & \textit{(Flag)} & Benennt \texttt{Zwischenpr"ufung} $\to$ \texttt{Abschlusspr"ufung Teil\,1} und \texttt{Abschlusspr"ufung} $\to$ \texttt{Abschlusspr"ufung Teil\,2} um \\
+\bottomrule
+\end{tabularx}
+
+\textbf{Standard-gesch"utzte Spalten} (\texttt{-{}-protect-cols}):\\
+{\small\texttt{lfdNr, FrageNr, BerufNr, Beruf, LFNr, AbschnNr, Nr, Richtig1, Richtig2,
+Schwierigkeit, Sprache, Richtig\_Text1, Richtig1\_Text, Richtig\_Text2,
+Abschlusspr"ufung\,Teil\,1, Abschlusspr"ufung\,Teil\,2, Lehrjahr, Zwischenpr"ufung, Abschlusspr"ufung}}
+
+\section{Beispielaufruf}
+
+{\small
+\begin{verbatim}
+python uebersetzer_programm_backoff.py ^
+    --pdf EH_260216.csv ^
+    --prompt "Megaprompt_26_02_06_MFA_Uebersetzen.docx" ^
+    --encoding utf-8-sig ^
+    --langage AR TR RU UK PL EN RO ^
+    --pruefung
+\end{verbatim}
+}
+
+\section{Modell und API-Anbindung}
+
+\subsection{Standardmodell: \texttt{gpt-5-mini}}
+Das Programm nutzt standardm"a"sig das OpenAI-Modell \texttt{gpt-5-mini} (konfigurierbar "uber
+\texttt{-{}-model}). Die Kommunikation erfolgt "uber die OpenAI Chat Completions API.
+Pro API-Aufruf wird ein Batch von Zeilen als JSON-Payload gesendet; die Antwort enth"alt
+die "ubersetzten Felder im gleichen Schema.
+
+\subsection{Fehlerbehandlung und Backoff}
+Bei API-Fehlern (Rate-Limits, Timeouts, Server-Fehler) werden bis zu \textbf{10 Wiederholungsversuche}
+mit exponentiellem Backoff durchgef"uhrt ($2^n$ Sekunden, max.\ 60\,s).
+Falls das gew"ahlte Modell den \texttt{temperature}-Parameter nicht unterst"utzt
+(z.\,B.\ \texttt{gpt-5-mini} akzeptiert nur Standardwert\,1), erfolgt automatisch
+ein Fallback ohne \texttt{temperature}.
+
+\subsection{Laufzeit-Kennzahlen pro "Ubersetzungslauf}
+Damit die Pipeline sauber skalierbar und reproduzierbar bleibt, werden bei jedem Lauf
+die wichtigsten Kennzahlen in der Konsolenausgabe protokolliert:
+
+\noindent
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Kennzahl} & \textbf{Beschreibung} \\
+\midrule
+Modell & Verwendetes OpenAI-Modell (z.\,B. \texttt{gpt-5-mini}, \texttt{gpt-4o-mini}) \\[3pt]
+Batchgr"o"se & Anzahl Zeilen pro API-Aufruf (Standard: 100) \\[3pt]
+Temperature & Steuerung der Kreativit"at/Zuf"alligkeit (0\,=\,deterministisch, 1\,=\,kreativ). Ohne Angabe: Modell-Standard \\[3pt]
+Anzahl API-Calls & Ergibt sich aus: $\lceil\text{Zeilen} / \text{Batchgr"o"se}\rceil$ pro Sprache\linebreak + Dedup-Aufrufe + ggf.\ Retry-Aufrufe \\[3pt]
+Gesamt-Tokens & Abh"angig von Textl"ange und Zielsprache. Wird von der OpenAI-API gemessen und abgerechnet \\[3pt]
+Laufzeit & Pro Sprache in der Konsolenausgabe angezeigt (z.\,B. \texttt{FERTIG in 12m34s}).
+           ETA wird w"ahrend der Batch-"Ubersetzung laufend berechnet \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\textbf{Rechenbeispiel:} Eine CSV mit 6\,400 Zeilen, Batchgr"o"se 100, 7~Sprachen ergibt
+mindestens $64 \times 7 = 448$ API-Aufrufe (Batch) + Dedup-Aufrufe + ggf.\ Retry.
+
+\section{Ausgabe}
+Pro Zielsprache wird eine Datei \texttt{<Eingabename>\_<SPRACHE>.csv} im Ausgabeordner erzeugt
+(z.\,B. \texttt{EH\_260216\_AR.csv}). Eine Fortschrittsdatei \texttt{.progress\_<Name>\_<SPRACHE>.json}
+erm"oglicht die Wiederaufnahme bei Abbruch.
+
+\end{document}

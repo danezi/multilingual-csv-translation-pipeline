@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# Output / translated files
+out_translated_backofff/
+
+# Progress files
+.progress_*.json
+
+# Data files (CSV, Excel, DOCX prompts)
+*.csv
+*.xlsx
+*.docx
+
+# OneDrive sync folder
+OneDrive_*/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Environment / secrets
+.env
+
+# Archives / data
+*.zip
+
+# Screenshots / images
+*.png
+
+# Misc
+NUL
+translation_checkpoint.json
+document.txt
+
+# Claude session data
+.claude/
+
+#BACKOFF
+uebersetzer_programm.py
