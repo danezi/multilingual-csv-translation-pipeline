@@ -37,9 +37,10 @@ import ftfy
 from docx import Document
 from openai import OpenAI
 
+#AR RU ES PL BG  RO
 
 # ── Standardmaessige Zielsprachen ──
-DEFAULT_LANGS = ["AR", "TR", "RU", "UK", "PL", "EN", "RO"]
+DEFAULT_LANGS = ["AR", "TR", "RU", "ES", "PL", "EN", "RO", "BG"]
 
 # API-Schluessel wird in dieser Reihenfolge gesucht:
 # 1. Umgebungsvariable OPENAI_API_KEY
@@ -64,7 +65,7 @@ DEFAULT_MODEL = "gpt-5-mini"
 
 # Spalten mit weniger als diesem Schwellenwert an einzigartigen Werten
 # werden per Dedup uebersetzt (schneller, da nur einmal pro Wert)
-DEDUP_THRESHOLD = 200
+DEDUP_THRESHOLD = 400
 
 
 def create_chat_completion(client: OpenAI, model: str, messages: list, temperature: float | None = None):
@@ -146,10 +147,9 @@ def parse_column_order(s: str | None) -> List[str] | None:
 
 
 def reorder_df_columns(df: pd.DataFrame, ordered_cols: List[str]) -> pd.DataFrame:
-    """Ordnet die DataFrame-Spalten in die gewuenschte Reihenfolge um."""
+    """Gibt nur die in ordered_cols gelisteten Spalten zurueck (in der angegebenen Reihenfolge)."""
     existing_ordered = [c for c in ordered_cols if c in df.columns]
-    remaining = [c for c in df.columns if c not in existing_ordered]
-    return df[existing_ordered + remaining]
+    return df[existing_ordered]
 
 
 def translate_batch(
@@ -197,6 +197,8 @@ def translate_batch(
     )
 
     max_retries = 10
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "api_calls": 0}
+    resp = None
     for attempt in range(1, max_retries + 1):
         try:
             client = OpenAI(api_key=api_key)
@@ -209,7 +211,37 @@ def translate_batch(
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
                 ],
             )
-            break
+            usage["api_calls"] += 1
+            if hasattr(resp, "usage") and resp.usage:
+                usage["prompt_tokens"] += getattr(resp.usage, "prompt_tokens", 0) or 0
+                usage["completion_tokens"] += getattr(resp.usage, "completion_tokens", 0) or 0
+
+            out_text = safe_json_extract(resp.choices[0].message.content or "")
+            data = json.loads(out_text)
+
+            if not isinstance(data, list):
+                raise ValueError("API-Antwort ist kein JSON-Array.")
+            if len(data) != len(payload):
+                raise ValueError(f"Batch-Groesse stimmt nicht: erwartet {len(payload)}, erhalten {len(data)}")
+
+            return data, usage
+
+        except (json.JSONDecodeError, ValueError) as e:
+            # JSON invalide ou tronque : on coupe le batch en deux et on relance chaque moitie
+            if len(batch_rows) > 1:
+                print(f"[{lang}] JSON-Fehler (Versuch {attempt}): {e} — Batch wird halbiert ({len(batch_rows)} -> 2x{len(batch_rows)//2})...")
+                mid = len(batch_rows) // 2
+                data1, u1 = translate_batch(api_key, model, prompt_rules, lang, batch_rows[:mid], text_cols, temperature)
+                data2, u2 = translate_batch(api_key, model, prompt_rules, lang, batch_rows[mid:], text_cols, temperature)
+                for k in usage:
+                    usage[k] += u1[k] + u2[k]
+                return data1 + data2, usage
+            if attempt == max_retries:
+                raise
+            wait = min(2 ** attempt, 60)
+            print(f"[{lang}] JSON-Fehler (Versuch {attempt}/{max_retries}): {e} — warte {wait}s...")
+            time.sleep(wait)
+
         except Exception as e:
             if attempt == max_retries:
                 raise
@@ -218,21 +250,6 @@ def translate_batch(
             if hasattr(e, "__cause__") and e.__cause__:
                 print(f"        Cause: {type(e.__cause__).__name__}: {e.__cause__}")
             time.sleep(wait)
-
-    usage = {"prompt_tokens": 0, "completion_tokens": 0, "api_calls": 1}
-    if hasattr(resp, "usage") and resp.usage:
-        usage["prompt_tokens"] = getattr(resp.usage, "prompt_tokens", 0) or 0
-        usage["completion_tokens"] = getattr(resp.usage, "completion_tokens", 0) or 0
-
-    out_text = safe_json_extract(resp.choices[0].message.content or "")
-    data = json.loads(out_text)
-
-    if not isinstance(data, list):
-        raise ValueError("API-Antwort ist kein JSON-Array.")
-    if len(data) != len(payload):
-        raise ValueError(f"Batch-Groesse stimmt nicht: erwartet {len(payload)}, erhalten {len(data)}")
-
-    return data, usage
 
 
 def apply_translations(df_out: pd.DataFrame, translated: List[Dict[str, Any]], text_cols: List[str]) -> None:
@@ -414,7 +431,7 @@ def translate_unique_values(
     lang: str,
     col_name: str,
     values: List[str],
-    batch_size: int = 50,
+    batch_size: int = 100,
     temperature: float | None = None,
 ) -> Tuple[Dict[str, str], Dict[str, int]]:
     """
@@ -454,7 +471,22 @@ def translate_unique_values(
                         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
                     ],
                 )
+                total_usage["api_calls"] += 1
+                if hasattr(resp, "usage") and resp.usage:
+                    total_usage["prompt_tokens"] += getattr(resp.usage, "prompt_tokens", 0) or 0
+                    total_usage["completion_tokens"] += getattr(resp.usage, "completion_tokens", 0) or 0
+
+                data = json.loads(safe_json_extract(resp.choices[0].message.content or ""))
+
+                if isinstance(data, list):
+                    for item in data:
+                        idx = item.get("row_index", -1)
+                        fields = item.get("fields", {})
+                        if col_name in fields and 0 <= idx < len(batch_vals):
+                            val = fields[col_name]
+                            mapping[batch_vals[idx]] = ftfy.fix_text(val) if isinstance(val, str) else val
                 break
+
             except Exception as e:
                 if attempt == max_retries:
                     raise
@@ -463,21 +495,6 @@ def translate_unique_values(
                 if hasattr(e, "__cause__") and e.__cause__:
                     print(f"        Cause: {type(e.__cause__).__name__}: {e.__cause__}")
                 time.sleep(wait)
-
-        total_usage["api_calls"] += 1
-        if hasattr(resp, "usage") and resp.usage:
-            total_usage["prompt_tokens"] += getattr(resp.usage, "prompt_tokens", 0) or 0
-            total_usage["completion_tokens"] += getattr(resp.usage, "completion_tokens", 0) or 0
-
-        data = json.loads(safe_json_extract(resp.choices[0].message.content or ""))
-
-        if isinstance(data, list):
-            for item in data:
-                idx = item.get("row_index", -1)
-                fields = item.get("fields", {})
-                if col_name in fields and 0 <= idx < len(batch_vals):
-                    val = fields[col_name]
-                    mapping[batch_vals[idx]] = ftfy.fix_text(val) if isinstance(val, str) else val
 
     return mapping, total_usage
 
@@ -496,11 +513,10 @@ PROTOKOLL_COLUMNS = [
 ]
 
 
-def print_freitext_hinweise(stats: Dict[str, Any]) -> None:
+def print_freitext_hinweise(stats: Dict[str, Any]) -> Dict[str, str]:
     """
-    Gibt automatische Beobachtungen fuer Abschnitt C (Freitext) in die Konsole aus.
-    Diese Hinweise werden NICHT in die CSV geschrieben — sie dienen als Vorschlaege
-    fuer den Benutzer, der sie bei Bedarf manuell in die Protokoll-CSV eintraegt.
+    Gibt automatische Beobachtungen fuer Abschnitt C (Freitext) in die Konsole aus
+    und gibt sie als Dict zurueck, damit sie ins Protokoll geschrieben werden koennen.
     """
     lang = stats.get("sprache", "?")
     reste = stats.get("endgueltige_deutsch_reste", 0)
@@ -570,6 +586,13 @@ def print_freitext_hinweise(stats: Dict[str, Any]) -> None:
 
     print(f"[{lang}] ╚{'═'*52}╝\n")
 
+    return {
+        "Technische_Auffaelligkeiten": " | ".join(hints_tech),
+        "Anpassungen_am_Prompt": " | ".join(hints_prompt),
+        "Anpassungen_an_Pipeline": " | ".join(hints_pipe),
+        "Empfehlung_naechster_Lauf": " | ".join(hints_next),
+    }
+
 
 def write_protokoll(outdir: str, in_csv_basename: str, stats: Dict[str, Any]) -> None:
     """
@@ -599,6 +622,10 @@ def write_protokoll(outdir: str, in_csv_basename: str, stats: Dict[str, Any]) ->
     row["Manuell_korrigiert"] = ""
     row["Neu_uebersetzt"] = stats.get("neu_uebersetzt", 0)
     row["Endgueltige_Deutsch_Reste"] = stats.get("endgueltige_deutsch_reste", 0)
+    row["Technische_Auffaelligkeiten"] = stats.get("Technische_Auffaelligkeiten", "")
+    row["Anpassungen_am_Prompt"] = stats.get("Anpassungen_am_Prompt", "")
+    row["Anpassungen_an_Pipeline"] = stats.get("Anpassungen_an_Pipeline", "")
+    row["Empfehlung_naechster_Lauf"] = stats.get("Empfehlung_naechster_Lauf", "")
 
     new_row = pd.DataFrame([row], columns=PROTOKOLL_COLUMNS)
 
@@ -609,11 +636,9 @@ def write_protokoll(outdir: str, in_csv_basename: str, stats: Dict[str, Any]) ->
         if mask.any():
             # Freitext-Felder (Abschnitt C) aus bestehender Zeile uebernehmen
             old_row = df_proto.loc[mask].iloc[0]
-            for col in ["Manuell_korrigiert", "Technische_Auffaelligkeiten",
-                         "Anpassungen_am_Prompt", "Anpassungen_an_Pipeline",
-                         "Empfehlung_naechster_Lauf"]:
-                if col in old_row and str(old_row[col]).strip():
-                    new_row.at[new_row.index[0], col] = old_row[col]
+            # Seul Manuell_korrigiert est preserve (saisi manuellement)
+            if "Manuell_korrigiert" in old_row and str(old_row["Manuell_korrigiert"]).strip():
+                new_row.at[new_row.index[0], "Manuell_korrigiert"] = old_row["Manuell_korrigiert"]
             df_proto = df_proto[~mask]
         df_proto = pd.concat([df_proto, new_row], ignore_index=True)
     else:
@@ -636,7 +661,7 @@ def main():
     ap.add_argument("--outdir", default="out_translated_backofff", help="Ausgabeordner")
 
     ap.add_argument("--langage", nargs="*", default=None, help="Zielsprachen, z.B.: --langage EN oder --langage EN TR AR")
-    ap.add_argument("--batch-size", type=int, default=100, help="Zeilen pro Batch (10-200)")
+    ap.add_argument("--batch-size", type=int, default=200, help="Zeilen pro Batch (10-200)")
     ap.add_argument("--sep", default=None, help="CSV-Trenner, z.B. ';' oder ',' (automatisch wenn leer)")
     ap.add_argument("--encoding", default="utf-8", help="Eingabe-Encoding, z.B. utf-8 oder utf-8-sig")
 
@@ -696,6 +721,10 @@ def main():
 
     # Spaltennamen normalisieren (fuehrende/nachfolgende Leerzeichen entfernen)
     df.columns = [c.strip() for c in df.columns]
+
+    # Spalten, die nicht in --column-order stehen, werden automatisch ausgeschlossen
+    if column_order:
+        never_translate |= set(df.columns) - set(column_order)
 
     # --pruefung: Pruefungsspalten umbenennen
     if args.pruefung:
@@ -897,8 +926,9 @@ def main():
             # Mini-Batches fuer die Neuuebersetzung erstellen
             retry_indices = sorted(rows_to_retry.keys())
             retry_cells_this_round = 0
-            for rb_start in range(0, len(retry_indices), args.batch_size):
-                rb_chunk = retry_indices[rb_start : rb_start + args.batch_size]
+            retry_batch_size = min(args.batch_size, 50)
+            for rb_start in range(0, len(retry_indices), retry_batch_size):
+                rb_chunk = retry_indices[rb_start : rb_start + retry_batch_size]
                 retry_batch = [(idx, df.iloc[idx]) for idx in rb_chunk]
                 # Zu uebersetzende Spalten = Vereinigung der verdaechtigen Spalten dieses Batches
                 retry_cols = list({col for idx in rb_chunk for col in rows_to_retry[idx]})
@@ -936,12 +966,19 @@ def main():
 
     # Alle Zielsprachen nacheinander verarbeiten
     for lang in langs:
-        try:
-            stats = do_lang(lang)
-            print_freitext_hinweise(stats)
-            write_protokoll(outdir, in_csv_basename, stats)
-        except Exception as e:
-            print(f"[{lang}] FEHLER: {e} — beim Neustart wird das Skript fortgesetzt.")
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                stats = do_lang(lang)
+                hints = print_freitext_hinweise(stats)
+                stats.update(hints)
+                write_protokoll(outdir, in_csv_basename, stats)
+                break  # Erfolg — naechste Sprache
+            except Exception as e:
+                wait = min(30 * attempt, 300)
+                print(f"[{lang}] FEHLER (Versuch {attempt}): {e} — Neuversuch in {wait}s...")
+                time.sleep(wait)
     print("Abgeschlossen.")
 
 

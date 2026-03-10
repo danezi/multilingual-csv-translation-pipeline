@@ -1,0 +1,580 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2.2cm, top=2.5cm, bottom=2.5cm]{geometry}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{parskip}
+\usepackage{array}
+\usepackage{mdframed}
+
+% ── Farben ──────────────────────────────────────────────────────────
+\definecolor{beezubi}{RGB}{0, 90, 160}
+\definecolor{hinweis}{RGB}{255, 243, 205}
+\definecolor{hinweisrand}{RGB}{200, 160, 0}
+\definecolor{achtung}{RGB}{255, 220, 220}
+\definecolor{achtungrand}{RGB}{180, 0, 0}
+\definecolor{erfolg}{RGB}{220, 245, 220}
+\definecolor{erfolgrand}{RGB}{0, 140, 0}
+\definecolor{codebg}{RGB}{245, 245, 245}
+\definecolor{codeframe}{RGB}{180, 180, 180}
+\definecolor{grau}{RGB}{100, 100, 100}
+
+% ── Kopf- und Fusszeile ─────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{beezubi}\textbf{BeeZubi Lernwelt GmbH}}
+\fancyhead[R]{\small\color{grau}Benutzeranleitung -- CSV-Übersetzungsprogramm}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Überschriften ───────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{beezubi}}{}{0em}{}[\vspace{-0.3em}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{beezubi}}{}{0em}{}
+\titlespacing*{\section}{0pt}{1.5ex}{0.8ex}
+\titlespacing*{\subsection}{0pt}{1ex}{0.4ex}
+
+% ── Listings (Code-Blöcke) ──────────────────────────────────────────
+\lstset{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\small\ttfamily,
+  breaklines=true,
+  breakatwhitespace=false,
+  keepspaces=true,
+  columns=fullflexible,
+  xleftmargin=6pt,
+  xrightmargin=6pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+}
+
+% ── Boxen ───────────────────────────────────────────────────────────
+\newenvironment{hinweisbox}{%
+  \begin{mdframed}[backgroundcolor=hinweis,linecolor=hinweisrand,linewidth=1pt,
+    innerleftmargin=8pt,innerrightmargin=8pt,innertopmargin=6pt,innerbottommargin=6pt]
+  \small}{%
+  \end{mdframed}}
+
+\newenvironment{achtungbox}{%
+  \begin{mdframed}[backgroundcolor=achtung,linecolor=achtungrand,linewidth=1pt,
+    innerleftmargin=8pt,innerrightmargin=8pt,innertopmargin=6pt,innerbottommargin=6pt]
+  \small}{%
+  \end{mdframed}}
+
+\newenvironment{erfolgbox}{%
+  \begin{mdframed}[backgroundcolor=erfolg,linecolor=erfolgrand,linewidth=1pt,
+    innerleftmargin=8pt,innerrightmargin=8pt,innertopmargin=6pt,innerbottommargin=6pt]
+  \small}{%
+  \end{mdframed}}
+
+\setlength{\parindent}{0pt}
+
+% ────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Titelseite ──────────────────────────────────────────────────────
+\begin{center}
+  \vspace*{1cm}
+  {\LARGE\bfseries\color{beezubi} Benutzeranleitung}\\[0.4em]
+  {\Large CSV-Übersetzungsprogramm}\\[0.6em]
+  {\large\color{grau}\texttt{csv\_translator.py}}\\[1.2em]
+  \rule{0.6\linewidth}{0.4pt}\\[0.6em]
+  {\normalsize BeeZubi Lernwelt GmbH \quad|\quad Stand: März 2026}\\[0.3em]
+  {\small\color{grau}Für Anwender ohne Programmierkenntnisse}
+  \vspace{0.8cm}
+\end{center}
+
+% ── Überblick ────────────────────────────────────────────────────────
+\section{Was macht dieses Programm?}
+
+Das Programm übersetzt Prüfungsfragen automatisch aus einer deutschen CSV-Datei in
+mehrere Zielsprachen (z.\,B. Arabisch, Türkisch, Russisch, Spanisch, Polnisch,
+Englisch, Rumänisch). Es nutzt dazu die OpenAI-API (künstliche Intelligenz).
+
+\textbf{Eingabe:}
+\begin{itemize}[itemsep=2pt]
+  \item Eine CSV-Datei mit deutschen Prüfungsfragen (z.\,B. \texttt{Bankkaufleute\_260202.csv})
+  \item Eine Word-Datei (.docx) mit den Übersetzungsregeln (sog. Megaprompt,
+        z.\,B. \texttt{Megaprompt\_26\_03\_01\_Bank\_Uebersetzen.docx})
+\end{itemize}
+
+\textbf{Ausgabe:}
+\begin{itemize}[itemsep=2pt]
+  \item Pro Zielsprache eine übersetzte CSV-Datei im Ausgabeordner
+        \texttt{out\_translated\_backofff/}
+  \item Eine Protokolldatei mit Statistiken über jeden Übersetzungslauf
+\end{itemize}
+
+% ── Schritt 1: Python installieren ───────────────────────────────────
+\section{Schritt 1 — Python installieren}
+
+Das Programm benötigt \textbf{Python 3.10 oder neuer}. Falls Python bereits
+installiert ist, können Sie diesen Schritt überspringen.
+
+\subsection{Überprüfen, ob Python bereits vorhanden ist}
+
+Öffnen Sie \textbf{PowerShell} (Windows-Taste drücken, \texttt{PowerShell}
+eingeben, Enter drücken) und geben Sie ein:
+
+\begin{lstlisting}
+python --version
+\end{lstlisting}
+
+\begin{hinweisbox}
+\textbf{Ergebnis OK:} Wenn eine Versionsnummer erscheint (z.\,B.
+\texttt{Python 3.12.0}), ist Python bereits installiert — weiter mit Schritt~2.\\[4pt]
+\textbf{Ergebnis Fehler:} Wenn eine Fehlermeldung erscheint, muss Python
+installiert werden.
+\end{hinweisbox}
+
+\subsection{Python herunterladen und installieren}
+
+\begin{enumerate}[leftmargin=1.5em, itemsep=4pt]
+  \item Rufen Sie folgende Adresse in Ihrem Browser auf:\\
+        \url{https://www.python.org/downloads/}
+  \item Klicken Sie auf den gelben Button \textbf{„Download Python 3.x.x"}.
+  \item Starten Sie die heruntergeladene Installationsdatei (\texttt{.exe}).
+  \item \textbf{Wichtig:} Aktivieren Sie ganz unten im Installer-Fenster das
+        Häkchen \textbf{„Add Python to PATH"}, bevor Sie auf „Install Now" klicken.
+  \item Warten Sie, bis die Installation abgeschlossen ist.
+  \item Öffnen Sie eine neue PowerShell und prüfen Sie mit \texttt{python --version},
+        ob die Installation erfolgreich war.
+\end{enumerate}
+
+% ── Schritt 2: Benötigte Pakete installieren ─────────────────────────
+\section{Schritt 2 — Benötigte Pakete installieren}
+
+Das Programm benötigt vier Zusatzbibliotheken, die einmalig installiert werden müssen.
+
+Öffnen Sie \textbf{PowerShell}, navigieren Sie in den Projektordner und führen Sie
+folgenden Befehl aus:
+
+\begin{lstlisting}
+pip install pandas python-docx openai ftfy
+\end{lstlisting}
+
+\begin{hinweisbox}
+\textbf{In den richtigen Ordner wechseln:}\\
+Falls Sie sich noch nicht im Projektordner befinden, geben Sie zunächst ein:
+\begin{lstlisting}
+cd "D:\Arbeit\BeeZubi_Lernwelt_GmbH\Projekt_Uebersetzer"
+\end{lstlisting}
+(Passen Sie den Pfad ggf. an Ihren tatsächlichen Speicherort an.)
+\end{hinweisbox}
+
+Die Pakete werden automatisch aus dem Internet heruntergeladen und installiert.
+Dies dauert einige Minuten. Warten Sie, bis der Befehl abgeschlossen ist
+(Sie sehen wieder den PowerShell-Prompt \texttt{>}).
+
+\textbf{Was diese Pakete sind:}
+\begin{center}
+\begin{tabularx}{0.92\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Paket} & \textbf{Verwendung} \\
+\midrule
+\texttt{pandas} & Lesen und Schreiben von CSV-Dateien \\[3pt]
+\texttt{python-docx} & Lesen der Word-Datei mit den Übersetzungsregeln \\[3pt]
+\texttt{openai} & Kommunikation mit der OpenAI-API (KI-Übersetzung) \\[3pt]
+\texttt{ftfy} & Automatische Korrektur von Zeichencodierungsfehlern \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ── Schritt 3: OpenAI-API-Schlüssel einrichten ───────────────────────
+\section{Schritt 3 — OpenAI-API-Schlüssel einrichten}
+
+Das Programm kommuniziert mit dem OpenAI-Dienst (ChatGPT). Dafür wird ein
+persönlicher API-Schlüssel benötigt.
+
+\begin{achtungbox}
+\textbf{Der API-Schlüssel ist vertraulich!} Geben Sie ihn niemals weiter und
+speichern Sie ihn nicht in öffentlichen Dateien. Die Nutzung des Schlüssels
+ist kostenpflichtig — achten Sie auf Ihre Verbrauchsgrenzen im OpenAI-Dashboard.
+\end{achtungbox}
+
+\subsection{API-Schlüssel in einer .env-Datei hinterlegen (empfohlen)}
+
+\begin{enumerate}[leftmargin=1.5em, itemsep=4pt]
+  \item Erstellen Sie im Projektordner eine neue Textdatei mit dem Namen
+        \textbf{\texttt{.env}} (Punkt vor dem Namen, keine Dateiendung).
+  \item Öffnen Sie die Datei mit einem Texteditor (z.\,B. Editor/Notepad) und
+        schreiben Sie genau folgende Zeile hinein:
+\begin{lstlisting}
+OPENAI_API_KEY=sk-proj-IhrSchluesselHier
+\end{lstlisting}
+  \item Ersetzen Sie \texttt{sk-proj-IhrSchluesselHier} durch Ihren echten Schlüssel.
+  \item Speichern und schließen Sie die Datei.
+\end{enumerate}
+
+\begin{hinweisbox}
+\textbf{Hinweis:} Der API-Schlüssel beginnt immer mit \texttt{sk-}. Sie finden
+ihn auf der OpenAI-Webseite unter\\
+\url{https://platform.openai.com/api-keys}\\
+nach Anmeldung in Ihrem OpenAI-Konto.
+\end{hinweisbox}
+
+% ── Schritt 4: Eingabedateien vorbereiten ────────────────────────────
+\section{Schritt 4 — Eingabedateien vorbereiten}
+
+Stellen Sie sicher, dass folgende Dateien im Projektordner vorhanden sind:
+
+\begin{center}
+\begin{tabularx}{0.92\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Datei} & \textbf{Beschreibung} \\
+\midrule
+\texttt{MeineFragendatei.csv} & Die deutsche CSV-Datei mit den Prüfungsfragen. \\[3pt]
+\texttt{Megaprompt\_...docx} & Die Word-Datei mit den Übersetzungsregeln
+                               (vom Projektteam bereitgestellt). \\[3pt]
+\texttt{.env} & Datei mit dem API-Schlüssel (Schritt~3). \\[3pt]
+\texttt{csv\_translator.py} & Das Übersetzungsprogramm selbst. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{hinweisbox}
+\textbf{Anforderungen an die CSV-Datei:}
+\begin{itemize}[itemsep=2pt]
+  \item Trennzeichen: Semikolon \texttt{;} oder Komma \texttt{,}
+        (wird automatisch erkannt)
+  \item Encoding: UTF-8 oder UTF-8-BOM (\texttt{utf-8-sig}) — bei Excel-Export
+        \texttt{utf-8-sig} verwenden
+  \item Spaltennamen in der ersten Zeile
+\end{itemize}
+\end{hinweisbox}
+
+% ── Schritt 5: Programm starten ──────────────────────────────────────
+\section{Schritt 5 — Programm starten}
+
+\subsection{Standardaufruf (alle Standardsprachen)}
+
+Öffnen Sie \textbf{PowerShell} und navigieren Sie in den Projektordner:
+
+\begin{lstlisting}
+cd "D:\Arbeit\BeeZubi_Lernwelt_GmbH\Projekt_Uebersetzer"
+\end{lstlisting}
+
+Starten Sie das Programm mit folgendem Befehl (auf Ihren Dateinamen anpassen):
+
+\begin{lstlisting}
+python csv_translator.py `
+    --pdf Bankkaufleute_260202.csv `
+    --prompt Megaprompt_26_03_01_Bank_Uebersetzen.docx `
+    --encoding utf-8-sig
+\end{lstlisting}
+
+\begin{hinweisbox}
+\textbf{Tipp:} Das Zeichen \texttt{`} (Backtick, links neben der 1-Taste) ist in
+PowerShell der Zeilenfortsetzungszeichen. Sie können den Befehl auch in einer
+einzigen Zeile schreiben:
+\begin{lstlisting}
+python csv_translator.py --pdf Bankkaufleute_260202.csv --prompt Megaprompt_26_03_01_Bank_Uebersetzen.docx --encoding utf-8-sig
+\end{lstlisting}
+\end{hinweisbox}
+
+\subsection{Nur bestimmte Sprachen übersetzen}
+
+Wenn Sie nicht alle Sprachen, sondern z.\,B. nur Englisch und Türkisch übersetzen
+möchten, fügen Sie \texttt{-{}-langage} hinzu:
+
+\begin{lstlisting}
+python csv_translator.py `
+    --pdf Bankkaufleute_260202.csv `
+    --prompt Megaprompt_26_03_01_Bank_Uebersetzen.docx `
+    --encoding utf-8-sig `
+    --langage EN TR
+\end{lstlisting}
+
+\subsection{Mit angepasster Spaltenreihenfolge in der Ausgabe}
+
+Falls die Ausgabedatei nur bestimmte Spalten in einer festgelegten Reihenfolge
+enthalten soll, verwenden Sie \texttt{-{}-column-order}:
+
+\begin{lstlisting}
+python csv_translator.py `
+    --pdf Bankkaufleute_260202.csv `
+    --prompt Megaprompt_26_03_01_Bank_Uebersetzen.docx `
+    --encoding utf-8-sig `
+    --column-order "lfdNr;FrageNr;Frage;A;B;C;D;E;Richtig1;Sprache"
+\end{lstlisting}
+
+\begin{achtungbox}
+\textbf{Wichtig:} Spalten, die \emph{nicht} in \texttt{-{}-column-order} aufgeführt
+sind, erscheinen nicht in der Ausgabe und werden auch nicht übersetzt. Stellen Sie
+sicher, dass alle gewünschten Spalten angegeben sind.
+\end{achtungbox}
+
+\subsection{Vollständiges Beispiel mit allen wichtigen Optionen}
+
+\begin{lstlisting}
+python csv_translator.py `
+    --pdf Bankkaufleute_260202.csv `
+    --prompt Megaprompt_26_03_01_Bank_Uebersetzen.docx `
+    --encoding utf-8-sig `
+    --langage AR TR RU ES PL EN RO `
+    --batch-size 200 `
+    --column-order "lfdNr;FrageNr;BerufNr;Beruf;LFNr;LF;AbschnNr;Abschnitt;Nr;Frage;A;B;C;D;E;Richtig1;Richtig_Text1;Schwierigkeit;Sprache"
+\end{lstlisting}
+
+% ── Schritt 6: Programmablauf verstehen ──────────────────────────────
+\section{Schritt 6 — Was passiert während der Ausführung?}
+
+Nach dem Start erscheinen Meldungen in der PowerShell. Hier ist, was diese bedeuten:
+
+\begin{center}
+\begin{tabularx}{0.96\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Meldung} & \textbf{Bedeutung} \\
+\midrule
+\texttt{7149 Zeilen | 36 Batches/Sprache | 7 Sprachen} &
+  Zusammenfassung: Anzahl Zeilen, Pakete pro Sprache, Anzahl Sprachen \\[4pt]
+\texttt{[AR] 5.6\% | Ligne 200/7149 | Batch 0..199 OK | ETA: \textasciitilde32m} &
+  Fortschrittsanzeige: Sprache, Prozent, Zeilen, ETA (geschätzte Restzeit) \\[4pt]
+\texttt{[AR] JSON-Fehler — Batch wird halbiert} &
+  Ein Paket konnte nicht verarbeitet werden; das Programm teilt es automatisch
+  in kleinere Teile auf \\[4pt]
+\texttt{[AR] RETRY 1/4: Neuübersetzung von 105 Zellen} &
+  Nicht übersetzte Zellen werden automatisch nochmals übersetzt \\[4pt]
+\texttt{[AR] 100.0\% | FERTIG in 36m38s} &
+  Die Übersetzung für Arabisch ist abgeschlossen \\[4pt]
+\texttt{[AR] Protokoll geschrieben:} &
+  Die Statistiken wurden in die Protokolldatei gespeichert \\[4pt]
+\texttt{Abgeschlossen.} &
+  Alle Sprachen wurden verarbeitet — das Programm ist fertig \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{hinweisbox}
+\textbf{Laufzeit:} Die Übersetzung kann je nach Dateigröße und Anzahl der Sprachen
+mehrere Stunden dauern. Das Programm kann jederzeit unterbrochen und später
+fortgesetzt werden — der Fortschritt wird automatisch gespeichert.
+\end{hinweisbox}
+
+% ── Schritt 7: Ergebnisse finden ─────────────────────────────────────
+\section{Schritt 7 — Wo finde ich die Ergebnisse?}
+
+Alle Ausgabedateien befinden sich im Unterordner \texttt{out\_translated\_backofff}
+innerhalb des Projektordners.
+
+\subsection{Übersetzte CSV-Dateien}
+
+Für jede Zielsprache wird eine eigene Datei erstellt:
+
+\begin{center}
+\begin{tabularx}{0.85\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Dateiname} & \textbf{Inhalt} \\
+\midrule
+\texttt{Bankkaufleute\_260202\_AR.csv} & Arabische Übersetzung \\
+\texttt{Bankkaufleute\_260202\_TR.csv} & Türkische Übersetzung \\
+\texttt{Bankkaufleute\_260202\_RU.csv} & Russische Übersetzung \\
+\texttt{Bankkaufleute\_260202\_ES.csv} & Spanische Übersetzung \\
+\texttt{Bankkaufleute\_260202\_PL.csv} & Polnische Übersetzung \\
+\texttt{Bankkaufleute\_260202\_EN.csv} & Englische Übersetzung \\
+\texttt{Bankkaufleute\_260202\_RO.csv} & Rumänische Übersetzung \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{hinweisbox}
+\textbf{CSV-Dateien in Excel öffnen:} Doppelklick auf die Datei genügt in der Regel
+nicht (Excel interpretiert dann kein Semikolon als Trennzeichen). Gehen Sie stattdessen
+in Excel auf \textbf{Daten → Aus Text/CSV} und wählen Sie dort als Trennzeichen
+\textbf{Semikolon} und als Zeichencodierung \textbf{UTF-8} aus.
+\end{hinweisbox}
+
+\subsection{Protokolldatei}
+
+Die Datei \texttt{protokoll\_Bankkaufleute\_260202.csv} enthält für jede Sprache eine
+Zeile mit folgenden Informationen:
+
+\begin{center}
+\begin{tabularx}{0.96\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Spalte} & \textbf{Bedeutung} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Abschnitt A — Technische Laufdaten}} \\[2pt]
+\texttt{Datum} & Datum und Uhrzeit des Laufes \\
+\texttt{Sprache} & Zielsprache (z.\,B. AR, ES) \\
+\texttt{Modell} & Verwendetes KI-Modell \\
+\texttt{Anzahl\_API\_Calls} & Wie oft die KI kontaktiert wurde \\
+\texttt{Gesamt\_Input\_Tokens} & Gesendete Textmenge (für Kostenrechnung relevant) \\
+\texttt{Gesamt\_Output\_Tokens} & Empfangene Textmenge \\
+\texttt{Laufzeit} & Dauer des Laufes (z.\,B. \texttt{36m38s}) \\
+\texttt{Anzahl\_Retries} & Wie viele automatische Wiederholungsrunden stattfanden \\[6pt]
+
+\multicolumn{2}{@{}l}{\textit{Abschnitt B — Prüfergebnisse}} \\[2pt]
+\texttt{Gesamtzeilen} & Anzahl Zeilen in der Eingabedatei \\
+\texttt{Deutsch\_Reste\_automatisch} & Zellen, die nach dem ersten Durchlauf
+                                       noch auf Deutsch waren \\
+\texttt{Verdachtsfaelle\_gesamt} & Alle verdächtigen Zellen über alle Retry-Runden \\
+\texttt{Manuell\_korrigiert} & \textbf{Manuell auszufüllen} nach manueller Prüfung \\
+\texttt{Neu\_uebersetzt} & Wie viele Zellen durch Retry neu übersetzt wurden \\
+\texttt{Endgueltige\_Deutsch\_Reste} & Verbleibende deutsche Reste nach allen
+                                       Wiederholungen \\[6pt]
+
+\multicolumn{2}{@{}l}{\textit{Abschnitt C — Automatische Empfehlungen}} \\[2pt]
+\texttt{Technische\_Auffaelligkeiten} & Automatisch erkannte Auffälligkeiten \\
+\texttt{Anpassungen\_am\_Prompt} & Empfehlungen zur Verbesserung der Regeldatei \\
+\texttt{Anpassungen\_an\_Pipeline} & Empfehlungen zur technischen Pipeline \\
+\texttt{Empfehlung\_naechster\_Lauf} & Was beim nächsten Lauf beachtet werden sollte \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Fortschrittsdateien (technisch)}
+
+Dateien mit dem Namen \texttt{.progress\_...\_.json} im Ausgabeordner speichern
+den Fortschritt jeder Sprache. Sie müssen diese Dateien nicht öffnen oder ändern.
+Wenn eine Sprache fertig ist, steht \texttt{"done": true} darin.
+
+% ── Programm unterbrechen und fortsetzen ─────────────────────────────
+\section{Programm unterbrechen und fortsetzen}
+
+Das Programm kann jederzeit mit \textbf{Strg+C} in PowerShell unterbrochen werden.
+
+Beim nächsten Start erkennt das Programm automatisch, welche Zeilen bereits
+übersetzt wurden, und setzt genau dort fort — es wird keine Arbeit doppelt gemacht.
+
+\begin{erfolgbox}
+\textbf{Beispiel:} Wenn der Computer abgestürzt ist, nachdem 3.000 von 7.149 Zeilen
+übersetzt wurden, beginnt das Programm beim nächsten Start bei Zeile 3.001.
+\end{erfolgbox}
+
+% ── Fehlerbehandlung ─────────────────────────────────────────────────
+\section{Häufige Probleme und Lösungen}
+
+\begin{center}
+\begin{tabularx}{0.96\textwidth}{@{}p{4cm} X@{}}
+\toprule
+\textbf{Problem} & \textbf{Lösung} \\
+\midrule
+\texttt{python} nicht gefunden &
+  Python wurde nicht im PATH installiert. Python deinstallieren und neu
+  installieren — dabei „Add to PATH" aktivieren. \\[6pt]
+
+\texttt{No module named openai} &
+  Pakete wurden noch nicht installiert. Befehl ausführen:\\
+  \texttt{pip install pandas python-docx openai ftfy} \\[6pt]
+
+\texttt{Bitte OPENAI\_API\_KEY setzen} &
+  Die \texttt{.env}-Datei fehlt oder ist falsch geschrieben.
+  Prüfen Sie, ob die Datei wirklich \texttt{.env} heißt (mit Punkt,
+  ohne weitere Endung wie \texttt{.txt}). \\[6pt]
+
+\texttt{AuthenticationError} &
+  Der API-Schlüssel ist ungültig oder abgelaufen. Prüfen Sie ihn unter
+  \url{https://platform.openai.com/api-keys}. \\[6pt]
+
+Ausgabe-CSV hat komische Zeichen &
+  Öffnen Sie die Datei in Excel mit Encoding UTF-8 (Daten → Aus Text/CSV). \\[6pt]
+
+Programm läuft seit Stunden und macht nichts &
+  Bei sehr großen Dateien ist eine lange Laufzeit normal. Schauen Sie auf die
+  Prozentanzeige in der Konsole. Erscheint nichts mehr, können Sie das Programm
+  mit Strg+C stoppen und neu starten — der Fortschritt bleibt erhalten. \\[6pt]
+
+\texttt{PermissionError: out\_translated...} &
+  Die Ausgabe-CSV ist in Excel geöffnet. Schließen Sie Excel und das Programm
+  versucht automatisch erneut zu speichern. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ── Vollständige Parameterübersicht ──────────────────────────────────
+\section{Vollständige Parameterübersicht}
+
+Alle verfügbaren Optionen des Programms im Überblick:
+
+\begin{center}
+\begin{tabularx}{0.96\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Parameter} & \textbf{Standard} & \textbf{Beschreibung} \\
+\midrule
+\texttt{-{}-pdf} & \textit{Pflicht} &
+  Pfad zur Eingabe-CSV-Datei \\[4pt]
+\texttt{-{}-prompt} & \textit{Pflicht} &
+  Pfad zur Word-Datei mit Übersetzungsregeln \\[4pt]
+\texttt{-{}-encoding} & \texttt{utf-8} &
+  Zeichencodierung der CSV (\texttt{utf-8} oder \texttt{utf-8-sig} für Excel) \\[4pt]
+\texttt{-{}-langage} & AR TR RU ES PL EN RO &
+  Zielsprachen (durch Leerzeichen getrennt) \\[4pt]
+\texttt{-{}-model} & \texttt{gpt-5-mini} &
+  OpenAI-Modell (Standardmodell ist schnell und günstig) \\[4pt]
+\texttt{-{}-batch-size} & \texttt{200} &
+  Anzahl Zeilen pro API-Paket (10–200). Kleinere Werte = stabiler, größere = schneller \\[4pt]
+\texttt{-{}-outdir} & \texttt{out\_translated\_backofff} &
+  Name des Ausgabeordners \\[4pt]
+\texttt{-{}-column-order} & \textit{keine} &
+  Spaltenreihenfolge der Ausgabe, durch Semikolon getrennt. Nur gelistete Spalten
+  werden ausgegeben \\[4pt]
+\texttt{-{}-never-translate} & \textit{leer} &
+  Zusätzliche Spalten, die nicht übersetzt werden sollen (kommagetrennt) \\[4pt]
+\texttt{-{}-pruefung} & \textit{inaktiv} &
+  Benennt Spalten automatisch um: \texttt{Zwischenprüfung}
+  $\to$ \texttt{Abschlussprüfung Teil 1} \\[4pt]
+\texttt{-{}-temperature} & \textit{auto} &
+  Kreativitätsgrad der KI (0 = präzise, 1 = kreativ). Ohne Angabe: Modell-Standard \\[4pt]
+\texttt{-{}-sep} & \textit{auto} &
+  CSV-Trennzeichen, falls die automatische Erkennung nicht funktioniert \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ── Sprachcodes ──────────────────────────────────────────────────────
+\section{Unterstützte Sprachen}
+
+\begin{center}
+\begin{tabular}{@{}ll@{\qquad}ll@{\qquad}ll@{\qquad}ll@{}}
+\toprule
+\textbf{Code} & \textbf{Sprache} &
+\textbf{Code} & \textbf{Sprache} &
+\textbf{Code} & \textbf{Sprache} &
+\textbf{Code} & \textbf{Sprache} \\
+\midrule
+AR & Arabisch  & TR & Türkisch & RU & Russisch & ES & Spanisch \\
+PL & Polnisch  & EN & Englisch & RO & Rumänisch & UK & Ukrainisch \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Weitere Sprachen können über den Parameter \texttt{-{}-langage} mit ihrem
+ISO-639-1-Code angegeben werden (z.\,B. \texttt{FR} für Französisch,
+\texttt{IT} für Italienisch).
+
+% ── Checkliste ───────────────────────────────────────────────────────
+\section{Checkliste vor dem ersten Start}
+
+\begin{itemize}[label=\(\square\), itemsep=4pt, leftmargin=2em]
+  \item Python 3.10 oder neuer ist installiert (\texttt{python -{}-version} prüfen)
+  \item Pakete sind installiert (\texttt{pip install pandas python-docx openai ftfy})
+  \item Die Datei \texttt{.env} mit dem API-Schlüssel ist im Projektordner vorhanden
+  \item Die CSV-Eingabedatei ist im Projektordner vorhanden
+  \item Die Megaprompt-Word-Datei ist im Projektordner vorhanden
+  \item PowerShell ist auf den Projektordner gesetzt (\texttt{cd "-{}-Pfad-{}-})
+  \item Der Startbefehl enthält den richtigen Dateinamen für \texttt{-{}-pdf}
+        und \texttt{-{}-prompt}
+\end{itemize}
+
+% ── Kontakt ──────────────────────────────────────────────────────────
+\vspace{1em}
+\begin{center}
+\rule{0.5\linewidth}{0.4pt}\\[0.4em]
+{\small\color{grau}BeeZubi Lernwelt GmbH — Interne Dokumentation — März 2026}
+\end{center}
+
+\end{document}
