@@ -1,0 +1,195 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2cm, top=2.2cm, bottom=2.2cm]{geometry}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{listings}
+\usepackage{mdframed}
+\usepackage{parskip}
+
+% ── Farben ──
+\definecolor{beezubi}{RGB}{0, 90, 160}
+\definecolor{grau}{RGB}{100, 100, 100}
+\definecolor{codebg}{RGB}{245, 245, 245}
+\definecolor{codeframe}{RGB}{180, 180, 180}
+\definecolor{hinweis}{RGB}{255, 243, 205}
+\definecolor{hinweisrand}{RGB}{200, 160, 0}
+\definecolor{erfolg}{RGB}{220, 245, 220}
+\definecolor{erfolgrand}{RGB}{0, 140, 0}
+
+% ── Kopfzeile ──
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{beezubi}\textbf{BeeZubi Lernwelt GmbH}}
+\fancyhead[R]{\small\color{grau}Kurzanleitung — \texttt{csv\_translator.py}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Überschriften ──
+\titleformat{\section}{\large\bfseries\color{beezubi}}{}{0em}{}[\vspace{-0.2em}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{beezubi}}{}{0em}{}
+\titlespacing*{\section}{0pt}{1.2ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{0.8ex}{0.3ex}
+
+% ── Code ──
+\lstset{
+  backgroundcolor=\color{codebg},
+  frame=single, rulecolor=\color{codeframe},
+  basicstyle=\small\ttfamily,
+  breaklines=true, keepspaces=true,
+  xleftmargin=6pt, xrightmargin=6pt,
+  aboveskip=4pt, belowskip=4pt,
+}
+
+% ── Boxen ──
+\newenvironment{hinweisbox}{%
+  \begin{mdframed}[backgroundcolor=hinweis,linecolor=hinweisrand,linewidth=1pt,
+    innerleftmargin=8pt,innerrightmargin=8pt,innertopmargin=5pt,innerbottommargin=5pt]
+  \small}{\end{mdframed}}
+
+\newenvironment{erfolgbox}{%
+  \begin{mdframed}[backgroundcolor=erfolg,linecolor=erfolgrand,linewidth=1pt,
+    innerleftmargin=8pt,innerrightmargin=8pt,innertopmargin=5pt,innerbottommargin=5pt]
+  \small}{\end{mdframed}}
+
+\setlength{\parindent}{0pt}
+
+% ────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{beezubi} Kurzanleitung}\\[0.3em]
+  {\large CSV-Übersetzungsprogramm mit Parallelisierung}\\[0.2em]
+  {\small\color{grau}\texttt{csv\_translator.py} \quad|\quad Stand: März 2026}
+\end{center}
+
+\vspace{0.3em}
+
+% ── Voraussetzungen ──────────────────────────────────────────────────
+\section{Voraussetzungen}
+
+\begin{enumerate}[itemsep=3pt, leftmargin=1.5em]
+  \item \textbf{Python 3.10+} installiert \quad
+        \texttt{python -{}-version}
+  \item \textbf{Pakete installiert:}
+\begin{lstlisting}
+pip install pandas python-docx openai ftfy
+\end{lstlisting}
+  \item \textbf{API-Schlüssel} in der Datei \texttt{.env} im Projektordner:
+\begin{lstlisting}
+OPENAI_API_KEY=sk-proj-IhrSchluesselHier
+\end{lstlisting}
+  \item \textbf{Eingabedateien} im Projektordner vorhanden:
+        CSV-Datei + Megaprompt-DOCX-Datei
+\end{enumerate}
+
+% ── Standardaufruf ───────────────────────────────────────────────────
+\section{Standardaufruf (sequentiell, eine Sprache nach der anderen)}
+
+\begin{lstlisting}
+python csv_translator.py `
+    --pdf MeineDatei.csv `
+    --prompt MeinMegaprompt.docx `
+    --encoding utf-8-sig `
+    --sep ";" `
+    --langage AR TR RU ES PL EN RO BG `
+    --batch-size 200 `
+    --pruefung `
+    --column-order "FrageNr;lfdNr;BerufNr;Beruf;Abschlussprüfung Teil 1;Abschlussprüfung Teil 2;Lehrjahr;LFNr;LF;AbschnNr;Abschnitt;Nr;Frage;A;B;C;D;Richtig1;Richtig_Text1;Bild;Sprache"
+\end{lstlisting}
+
+% ── Parallelaufruf ───────────────────────────────────────────────────
+\section{Parallelaufruf (2 Sprachen gleichzeitig — empfohlen)}
+
+Fügen Sie einfach \texttt{-{}-parallel 2} am Ende hinzu:
+
+\begin{lstlisting}
+python csv_translator.py `
+    --pdf MeineDatei.csv `
+    --prompt MeinMegaprompt.docx `
+    --encoding utf-8-sig `
+    --sep ";" `
+    --langage AR TR RU ES PL EN RO BG `
+    --batch-size 200 `
+    --pruefung `
+    --column-order "FrageNr;lfdNr;BerufNr;Beruf;Abschlussprüfung Teil 1;Abschlussprüfung Teil 2;Lehrjahr;LFNr;LF;AbschnNr;Abschnitt;Nr;Frage;A;B;C;D;Richtig1;Richtig_Text1;Bild;Sprache" `
+    --parallel 2
+\end{lstlisting}
+
+\begin{erfolgbox}
+\textbf{Zeitersparnis:} Mit \texttt{-{}-parallel 2} laufen immer 2 Sprachen gleichzeitig.
+Bei 8 Sprachen à 30 Minuten: statt 4h nur noch \textasciitilde2h.\\[3pt]
+\textbf{Rate Limits:} Kein Risiko — \texttt{gpt-5-mini} erlaubt 10.000.000 Tokens/Minute.
+Der parallele Betrieb nutzt davon weniger als 5\%.
+\end{erfolgbox}
+
+% ── Parameter ────────────────────────────────────────────────────────
+\section{Wichtigste Parameter}
+
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Parameter} & \textbf{Standard} & \textbf{Beschreibung} \\
+\midrule
+\texttt{-{}-pdf} & \textit{Pflicht} & Eingabe-CSV-Datei \\[3pt]
+\texttt{-{}-prompt} & \textit{Pflicht} & Word-Datei mit Übersetzungsregeln \\[3pt]
+\texttt{-{}-encoding} & \texttt{utf-8} & \texttt{utf-8-sig} für Excel-Dateien \\[3pt]
+\texttt{-{}-sep} & \textit{auto} & CSV-Trennzeichen (\texttt{;} oder \texttt{,}) \\[3pt]
+\texttt{-{}-langage} & alle 8 Sprachen & Zielsprachen, durch Leerzeichen getrennt \\[3pt]
+\texttt{-{}-batch-size} & \texttt{200} & Zeilen pro API-Aufruf \\[3pt]
+\texttt{-{}-pruefung} & \textit{inaktiv} & Benennt \texttt{Zwischenprüfung} → \texttt{Abschlussprüfung Teil 1} um \\[3pt]
+\texttt{-{}-column-order} & \textit{keine} & Spalten der Ausgabe (nur diese werden ausgegeben) \\[3pt]
+\texttt{-{}-parallel} & \texttt{1} & Anzahl gleichzeitiger Sprachen \\
+\bottomrule
+\end{tabularx}
+
+% ── Sprachcodes ──────────────────────────────────────────────────────
+\section{Unterstützte Sprachen}
+
+\begin{tabular}{@{}llllllll@{}}
+\textbf{AR} Arabisch &
+\textbf{TR} Türkisch &
+\textbf{RU} Russisch &
+\textbf{ES} Spanisch &
+\textbf{PL} Polnisch &
+\textbf{EN} Englisch &
+\textbf{RO} Rumänisch &
+\textbf{BG} Bulgarisch \\
+\end{tabular}
+
+% ── Ergebnisse ───────────────────────────────────────────────────────
+\section{Ergebnisse finden}
+
+Alle Ausgabedateien befinden sich im Ordner \texttt{out\_translated\_backofff/}:
+
+\begin{tabular}{@{}ll@{}}
+\texttt{MeineDatei\_AR.csv} & Übersetzte Datei Arabisch \\
+\texttt{MeineDatei\_TR.csv} & Übersetzte Datei Türkisch \\
+\texttt{...} & (eine Datei pro Sprache) \\
+\texttt{protokoll\_MeineDatei.csv} & Statistiken aller Läufe \\
+\end{tabular}
+
+% ── Unterbrechen ─────────────────────────────────────────────────────
+\section{Unterbrechen und fortsetzen}
+
+Das Programm kann jederzeit mit \textbf{Strg+C} gestoppt werden.
+Beim Neustart wird automatisch an der letzten gespeicherten Position fortgesetzt —
+für jede Sprache unabhängig.
+
+\begin{hinweisbox}
+\textbf{CSV in Excel geöffnet?} → Schließen Sie Excel zuerst, sonst erscheint ein
+\texttt{PermissionError}. Das Programm wartet automatisch 5 Sekunden und versucht es erneut.
+\end{hinweisbox}
+
+\vspace{1em}
+\begin{center}
+\rule{0.5\linewidth}{0.4pt}\\[0.3em]
+{\small\color{grau}BeeZubi Lernwelt GmbH — März 2026}
+\end{center}
+
+\end{document}

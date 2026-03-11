@@ -29,6 +29,8 @@ import re
 import json
 import time
 import argparse
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
 
@@ -693,6 +695,13 @@ def main():
         help="Benennt Zwischenpruefung->Abschlusspruefung Teil 1 und Abschlusspruefung->Abschlusspruefung Teil 2 um.",
     )
 
+    ap.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Anzahl gleichzeitiger Sprachen (1=sequentiell, 2-3=parallel). Standard: 1",
+    )
+
     args = ap.parse_args()
 
     in_csv = args.pdf
@@ -964,8 +973,11 @@ def main():
 
         return stats
 
-    # Alle Zielsprachen nacheinander verarbeiten
-    for lang in langs:
+    # Lock fuer thread-sichere Protokoll-Schreibvorgaenge
+    _protokoll_lock = threading.Lock()
+
+    def run_lang(lang: str) -> None:
+        """Fuehrt do_lang mit Retry-Schleife aus und schreibt thread-sicher ins Protokoll."""
         attempt = 0
         while True:
             attempt += 1
@@ -973,12 +985,27 @@ def main():
                 stats = do_lang(lang)
                 hints = print_freitext_hinweise(stats)
                 stats.update(hints)
-                write_protokoll(outdir, in_csv_basename, stats)
-                break  # Erfolg — naechste Sprache
+                stats["parallelisierung"] = f"Ja ({args.parallel} Workers)" if args.parallel > 1 else "Nein"
+                with _protokoll_lock:
+                    write_protokoll(outdir, in_csv_basename, stats)
+                break
             except Exception as e:
                 wait = min(30 * attempt, 300)
                 print(f"[{lang}] FEHLER (Versuch {attempt}): {e} — Neuversuch in {wait}s...")
                 time.sleep(wait)
+
+    if args.parallel <= 1:
+        for lang in langs:
+            run_lang(lang)
+    else:
+        print(f"Parallelmodus: {args.parallel} Sprachen gleichzeitig\n")
+        with ThreadPoolExecutor(max_workers=args.parallel) as executor:
+            futures = {executor.submit(run_lang, lang): lang for lang in langs}
+            for future in as_completed(futures):
+                lang = futures[future]
+                if future.exception():
+                    print(f"[{lang}] Abgebrochen mit Fehler: {future.exception()}")
+
     print("Abgeschlossen.")
 
 
