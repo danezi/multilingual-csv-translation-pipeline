@@ -710,7 +710,7 @@ def main():
     outdir = args.outdir
     model = args.model
     temperature = args.temperature
-    langs = [x.upper() for x in args.langage] if args.langage else DEFAULT_LANGS
+    langs = [x.strip().upper() for x in args.langage] if args.langage else DEFAULT_LANGS
     column_order = parse_column_order(args.column_order)
 
     os.makedirs(outdir, exist_ok=True)
